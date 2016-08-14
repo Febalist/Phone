@@ -3,7 +3,10 @@
   "autoload": {
     "psr-4": {
       "Febalist\\Phone\\": "src/"
-    }
+    },
+    "files": [
+      "src/helpers.php"
+    ]
   },
   "require": {
     "giggsey/libphonenumber-for-php": "7.*"
