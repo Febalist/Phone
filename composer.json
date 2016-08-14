@@ -1,0 +1,11 @@
+{
+  "name": "febalist/phone",
+  "autoload": {
+    "psr-4": {
+      "Febalist\\Phone\\": "src/"
+    }
+  },
+  "require": {
+    "giggsey/libphonenumber-for-php": "7.*"
+  }
+}
