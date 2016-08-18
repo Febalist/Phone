@@ -14,7 +14,7 @@ class Phone
 
     public function __construct($number, $default_country = null)
     {
-        if (is_object($number) && $number instanceof Phone) {
+        if ($number instanceof Phone) {
             $default_country = $number->default_country;
             $number          = $number->number;
         }
@@ -24,7 +24,7 @@ class Phone
                 $default_country = explode('_', $locale)[0];
             }
         }
-        $this->number          = (string)$number;
+        $this->number          = trim($number);
         $this->default_country = strtoupper($default_country);
     }
 
