@@ -1,128 +1,130 @@
 <?php namespace Febalist\Phone;
 
+use Illuminate\Foundation\Application;
 use libphonenumber\geocoding\PhoneNumberOfflineGeocoder;
 use libphonenumber\NumberParseException;
-use libphonenumber\PhoneNumber;
 use libphonenumber\PhoneNumberFormat;
 use libphonenumber\PhoneNumberType;
 use libphonenumber\PhoneNumberUtil;
 
+/**
+ * @property-read string  $international
+ * @property-read string  $national
+ * @property-read string  $short
+ * @property-read string  $e164
+ * @property-read string  $rfc3966
+ * @property-read string  $country
+ * @property-read string  $region
+ * @property-read boolean $local
+ * @property-read boolean $mobile
+ */
 class Phone
 {
+    /** @var string */
     public $number;
+    /** @var string */
+    public $locale;
+    /** @var string */
     public $default_country;
+    /** @var bool */
+    public $valid;
 
-    public function __construct($number, $default_country = null)
+    protected $parsed;
+
+    public function __construct($number, $locale = null, $default_country = null)
     {
-        if ($number instanceof Phone) {
-            $default_country = $number->default_country;
-            $number          = $number->number;
+        if ($number instanceof static) {
+            $number = $number->number;
+            $locale = $locale ?: $number->locale;
+            $default_country = $default_country ?: $number->country;
         }
-        if (!$default_country) {
-            $locale = $this->locale(null);
-            if ($locale) {
-                $default_country = explode('_', $locale)[0];
-            }
-        }
-        $this->number          = trim($number);
-        $this->default_country = strtoupper($default_country);
+
+        $this->number = (string) $number;
+        $this->locale = $locale ?: static::detectLocale();
+        $this->default_country = static::parseCountry($default_country, $this->locale);
+
+        $this->parsed = static::parseNumber($this->number, $this->default_country);
+        $this->valid = $this->parsed ? static::util()->isValidNumber($this->parsed) : false;
     }
 
-    protected function locale($default = 'en_US')
-    {
-        if (function_exists('config')) {
-            return config('app.locale');
-        }
-        return $default;
-    }
-
-    /** @return PhoneNumberUtil */
-    protected function util()
+    protected static function util()
     {
         return PhoneNumberUtil::getInstance();
     }
 
-    /** @return phoneNumber */
-    protected function phoneNumber()
+    protected static function parseNumber($number, $country = null)
     {
-        return $this->util()->parse($this->number, $this->default_country);
+        try {
+            return static::util()->parse($number, $country);
+        } catch (NumberParseException $exception) {
+            return null;
+        }
     }
 
-    /** @return $this */
-    public function parse($exception = false)
+    protected static function parseCountry($country = null, $locale = null)
     {
-        $valid = $this->isValid();
-        if ($valid) {
-            return $this;
+        if (!$country && $locale) {
+            $country = explode('_', $locale)[0];
         }
-        if ($exception) {
-            throw new NumberParseException(
-                NumberParseException::NOT_A_NUMBER,
-                'Invalid phone number.'
-            );
+        return $country ? strtoupper($country) : null;
+    }
+
+    protected static function detectLocale()
+    {
+        if (class_exists(Application::class)) {
+            return app()->getLocale();
         }
         return null;
     }
 
-    /** @return bool */
-    public function isValid()
+    /** @return $this */
+    public function validate($exception = false)
     {
-        try {
-            return $this->util()->isValidNumber($this->phoneNumber());
-        } catch (NumberParseException $e) {
-            return false;
+        if (!$this->valid) {
+            if ($exception) {
+                throw new NumberParseException(
+                    NumberParseException::NOT_A_NUMBER,
+                    'Invalid phone number.'
+                );
+            }
+            $this->parsed = null;
+        }
+        return $this;
+    }
+
+    public function __toString()
+    {
+        return $this->number;
+    }
+
+    public function __get($name)
+    {
+        if (!$this->parsed) {
+            return;
+        } elseif ($name == 'international') {
+            return $this->format(PhoneNumberFormat::INTERNATIONAL);
+        } elseif ($name == 'national') {
+            return $this->format(PhoneNumberFormat::NATIONAL);
+        } elseif ($name == 'e164') {
+            return $this->format(PhoneNumberFormat::E164);
+        } elseif ($name == 'rfc3966') {
+            return $this->format(PhoneNumberFormat::RFC3966);
+        } elseif ($name == 'short') {
+            return str_replace('+', '', $this->e164);
+        } elseif ($name == 'country') {
+            return static::util()->getRegionCodeForNumber($this->parsed);
+        } elseif ($name == 'region') {
+            return PhoneNumberOfflineGeocoder::getInstance()
+                ->getDescriptionForNumber($this->parsed, $this->locale, $this->country);
+        } elseif ($name == 'local') {
+            return $this->default_country && $this->default_country == $this->country;
+        } elseif ($name == 'mobile') {
+            return static::util()->getNumberType($this->parsed) == PhoneNumberType::MOBILE;
         }
     }
 
-    /** @return string */
-    public function e164()
+    protected function format($format)
     {
-        if (!$this->isValid()) {
-            return $this->number;
-        }
-        return $this->util()->format($this->phoneNumber(), PhoneNumberFormat::E164);
+        return static::util()->format($this->parsed, $format);
     }
-
-    /** @return string */
-    public function pretty($international = false)
-    {
-        if (!$this->isValid()) {
-            return $this->number;
-        }
-        $international = $international || !$this->isLocal();
-        $format        = $international ? PhoneNumberFormat::INTERNATIONAL : PhoneNumberFormat::NATIONAL;
-        return $this->util()->format($this->phoneNumber(), $format);
-    }
-
-    /** @return string */
-    public function country()
-    {
-        return $this->util()->getRegionCodeForNumber($this->phoneNumber());
-    }
-
-    /** @return string */
-    public function region($locale = null)
-    {
-        if (!$locale) {
-            $locale = $this->locale();
-        }
-        $geocoder = PhoneNumberOfflineGeocoder::getInstance();
-        return $geocoder->getDescriptionForNumber($this->phoneNumber(), $locale, $this->default_country);
-    }
-
-    /** @return bool */
-    public function isLocal()
-    {
-        if (!$this->default_country) {
-            return null;
-        }
-        return $this->country() == $this->default_country;
-    }
-
-    /** @return bool */
-    public function isMobile()
-    {
-        return $this->util()->getNumberType($this->phoneNumber()) == PhoneNumberType::MOBILE;
-    }
-
 }

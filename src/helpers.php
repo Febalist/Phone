@@ -2,40 +2,25 @@
 
 if (!function_exists('phone')) {
     /** @return Febalist\Phone\Phone */
-    function phone($number, $default_country = null)
+    function phone($number, $locale = null, $country = null)
     {
-        return new Febalist\Phone\Phone($number, $default_country);
+        return new Febalist\Phone\Phone($number, $locale, $country);
     }
 }
 
 if (!function_exists('phone_parse')) {
-    /** @return Febalist\Phone\Phone */
-    function phone_parse($number, $exception = false)
+    /** @return string */
+    function phone_parse($number, $exception = false, $locale = null, $country = null)
     {
-        $phone = phone($number);
-        return $phone->parse($exception);
+        return phone($number, $locale, $country)->validate($exception)->e164;
     }
 }
 
 if (!function_exists('phone_pretty')) {
     /** @return string */
-    function phone_pretty($number, $international = false)
+    function phone_pretty($number, $international = false, $locale = null, $country = null)
     {
-        return phone($number)->pretty($international);
-    }
-}
-
-if (!function_exists('phone_e164')) {
-    /** @return string */
-    function phone_e164($number, $parse = false, $exception = false)
-    {
-        $phone = phone($number);
-        if ($parse) {
-            $phone = $phone->parse($exception);
-        }
-        if ($phone) {
-            return $phone->e164();
-        }
-        return '';
+        $phone = phone($number, $locale, $country);
+        return ($international ? $phone->international : $phone->national) ?: $number;
     }
 }
