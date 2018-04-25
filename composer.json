@@ -10,5 +10,12 @@
   },
   "require": {
     "giggsey/libphonenumber-for-php": "8.*"
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Febalist\\Phone\\ServiceProvider"
+      ]
+    }
   }
 }

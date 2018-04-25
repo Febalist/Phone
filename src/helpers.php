@@ -21,6 +21,7 @@ if (!function_exists('phone_pretty')) {
     function phone_pretty($number, $international = false, $locale = null, $country = null)
     {
         $phone = phone($number, $locale, $country);
+
         return ($international ? $phone->international : $phone->national) ?: $number;
     }
 }
